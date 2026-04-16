@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import DashboardPageHero from '@/components/DashboardPageHero'
 import type { Profile, Difficulty } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -175,8 +176,12 @@ export default async function AnalyticsPage() {
   const simRows = Object.values(simBreakdown).sort((a, b) => b.attempts - a.attempts)
 
   return (
-    <div className="max-w-5xl">
-      <h1 className="text-xl font-bold text-slate-900 mb-6">Team Analytics</h1>
+    <div className="w-full">
+      <DashboardPageHero
+        kicker="Coach console"
+        title="Team analytics"
+        description="Org-wide completion, scoring, and rubric weak spots — so trainers know where to coach before the next pipeline review."
+      />
 
       {/* Overview cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">

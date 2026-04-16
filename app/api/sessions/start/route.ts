@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireRole, errorResponse } from '@/lib/api-helpers'
 import { buildPersonaSystemPrompt } from '@/lib/prompts/persona'
+import { resolvePersonaVoice } from '@/lib/voices'
 import { defaultPersonaState } from '@/types'
 import type { Simulation } from '@/types'
 
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
   // Note: use fetch directly — this endpoint is not in the openai SDK's standard namespaces
   let ephemeralToken: string
   let openaiSessionId: string
+  const personaVoice = resolvePersonaVoice(simulation.persona_name, simulation.persona_voice)
 
   try {
     const oaiRes = await fetch('https://api.openai.com/v1/realtime/sessions', {
@@ -69,8 +71,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-realtime-preview-2024-12-17',
-        voice: 'shimmer',
+        model: 'gpt-realtime',
       }),
     })
 
@@ -114,6 +115,7 @@ export async function POST(request: NextRequest) {
     ephemeral_token: ephemeralToken,
     initial_system_prompt: initialSystemPrompt,
     opening_line: simulation.opening_line,
+    persona_voice: personaVoice,
     persona_state: defaultPersonaState,
   })
 }

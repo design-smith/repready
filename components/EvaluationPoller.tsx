@@ -1,6 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import {
+  Box,
+  Button,
+  Spinner,
+  Stack,
+  Text,
+  VStack,
+} from '@chakra-ui/react'
 import type { Evaluation } from '@/types'
 
 interface EvaluationPollerProps {
@@ -35,12 +43,9 @@ export default function EvaluationPoller({
       }
     }
 
-    // Start polling every 3 seconds
     intervalRef.current = setInterval(poll, 3000)
-    // Also fire once immediately
     poll()
 
-    // Stop after 60 seconds
     timeoutRef.current = setTimeout(() => {
       if (!resolvedRef.current) {
         clearInterval(intervalRef.current!)
@@ -56,46 +61,39 @@ export default function EvaluationPoller({
 
   if (timedOut) {
     return (
-      <div className="card text-center py-10">
-        <p className="text-slate-500 text-sm">
+      <Box borderWidth="1px" borderColor="gray.200" borderRadius="2xl" p={10} bg="white" textAlign="center" boxShadow="sm">
+        <Text color="gray.600" fontSize="sm">
           Scoring is taking longer than expected.{' '}
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="text-blue-600 hover:underline font-medium"
-          >
-            Refresh the page to check again.
-          </button>
-        </p>
-      </div>
+          <Button variant="link" colorScheme="cyan" size="sm" onClick={() => window.location.reload()}>
+            Refresh the page
+          </Button>{' '}
+          to check again.
+        </Text>
+      </Box>
     )
   }
 
   return (
-    <div className="card text-center py-10">
-      <div className="flex items-center justify-center gap-3 text-slate-500">
-        <svg
-          className="animate-spin w-5 h-5 text-blue-500 shrink-0"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8v8H4z"
-          />
-        </svg>
-        <p className="text-sm">Analyzing your call…</p>
-      </div>
-    </div>
+    <Box
+      borderWidth="1px"
+      borderColor="cyan.100"
+      borderRadius="2xl"
+      py={12}
+      px={6}
+      bgGradient="linear(to-br, white, cyan.50)"
+      boxShadow="sm"
+    >
+      <VStack spacing={4}>
+        <Spinner size="lg" color="cyan.500" thickness="4px" speed="0.7s" />
+        <Stack spacing={1} textAlign="center">
+          <Text fontWeight="semibold" color="gray.800">
+            Analyzing your call
+          </Text>
+          <Text fontSize="sm" color="gray.500">
+            Rubric scoring and coaching notes are on the way…
+          </Text>
+        </Stack>
+      </VStack>
+    </Box>
   )
 }

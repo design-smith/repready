@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireRole, errorResponse } from '@/lib/api-helpers'
+import { isMissingPersonaVoiceColumnError } from '@/lib/supabase/schemaCompat'
+import { resolvePersonaVoice } from '@/lib/voices'
 import type { SimulationFormData } from '@/types'
 
 // ---------------------------------------------------------------
@@ -84,29 +86,39 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient()
+  const insertPayload = {
+    title: body.title.trim(),
+    difficulty: body.difficulty,
+    call_goal: body.call_goal.trim(),
+    persona_name: body.persona_name.trim(),
+    persona_role: body.persona_role.trim(),
+    persona_voice: resolvePersonaVoice(body.persona_name, body.persona_voice),
+    persona_style: body.persona_style.trim(),
+    company_context: body.company_context.trim(),
+    opening_line: body.opening_line.trim(),
+    hidden_objections: body.hidden_objections,
+    allowed_disclosures: body.allowed_disclosures,
+    forbidden_disclosures: body.forbidden_disclosures,
+    success_criteria: body.success_criteria.trim(),
+    scoring_rubric: body.scoring_rubric,
+    is_active: body.is_active,
+    version: 1,
+    created_by: auth.userId,
+  }
 
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from('simulations')
-    .insert({
-      title: body.title.trim(),
-      difficulty: body.difficulty,
-      call_goal: body.call_goal.trim(),
-      persona_name: body.persona_name.trim(),
-      persona_role: body.persona_role.trim(),
-      persona_style: body.persona_style.trim(),
-      company_context: body.company_context.trim(),
-      opening_line: body.opening_line.trim(),
-      hidden_objections: body.hidden_objections,
-      allowed_disclosures: body.allowed_disclosures,
-      forbidden_disclosures: body.forbidden_disclosures,
-      success_criteria: body.success_criteria.trim(),
-      scoring_rubric: body.scoring_rubric,
-      is_active: body.is_active,
-      version: 1,
-      created_by: auth.userId,
-    })
+    .insert(insertPayload)
     .select()
     .single()
+
+  // Temporary compatibility path for local DBs that have not applied 005_persona_voices.sql yet.
+  if (error && isMissingPersonaVoiceColumnError(error)) {
+    const { persona_voice: _personaVoice, ...legacyPayload } = insertPayload
+    const retry = await admin.from('simulations').insert(legacyPayload).select().single()
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) {
     console.error('[POST /api/simulations]', error)

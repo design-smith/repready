@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import DashboardPageHero from '@/components/DashboardPageHero'
 
 export const dynamic = 'force-dynamic'
 import NewSimulationClient from '@/components/NewSimulationClient'
@@ -25,16 +26,11 @@ export default async function NewSimulationPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <a href="/dashboard" className="text-sm text-blue-600 hover:underline">
-          ← Back to dashboard
-        </a>
-        <h1 className="text-xl font-bold text-slate-900 mt-2">New Simulation</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
-          Start from a template or define the scenario from scratch.
-        </p>
-      </div>
-
+      <DashboardPageHero
+        kicker="Authoring"
+        title="New simulation"
+        description="Templates jump-start you; the editor is where persona voice, objections, and rubric come alive. Reps feel the difference."
+      />
       <NewSimulationClient templates={(templates ?? []) as SimulationTemplate[]} />
     </div>
   )

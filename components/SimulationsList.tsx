@@ -1,9 +1,25 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import Link from 'next/link'
+import {
+  Box,
+  Button,
+  Heading,
+  HStack,
+  Input,
+  InputGroup,
+  InputLeftElement,
+  SimpleGrid,
+  Text,
+  VStack,
+  Icon,
+  Badge,
+} from '@chakra-ui/react'
+import { Link } from '@chakra-ui/next-js'
+import { SearchIcon } from '@saas-ui/react'
 import DifficultyBadge from '@/components/DifficultyBadge'
-import type { Simulation, Difficulty, Role } from '@/types'
+import DashboardPageHero from '@/components/DashboardPageHero'
+import type { Simulation, Role } from '@/types'
 
 interface SimulationsListProps {
   simulations: Pick<
@@ -15,9 +31,9 @@ interface SimulationsListProps {
 
 export default function SimulationsList({ simulations, userRole }: SimulationsListProps) {
   const [search, setSearch] = useState('')
-  const [difficultyFilter, setDifficultyFilter] = useState<Difficulty | 'all'>('all')
 
   const canCreate = userRole === 'trainer' || userRole === 'admin'
+  const showMetaBadges = userRole !== 'rep'
 
   const filtered = useMemo(() => {
     return simulations.filter((s) => {
@@ -25,118 +41,120 @@ export default function SimulationsList({ simulations, userRole }: SimulationsLi
         !search.trim() ||
         s.title.toLowerCase().includes(search.toLowerCase()) ||
         s.persona_name.toLowerCase().includes(search.toLowerCase())
-      const matchesDifficulty =
-        difficultyFilter === 'all' || s.difficulty === difficultyFilter
-      return matchesSearch && matchesDifficulty
+      return matchesSearch
     })
-  }, [simulations, search, difficultyFilter])
+  }, [simulations, search])
 
   return (
-    <div>
-      {/* Header row */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Simulations</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {simulations.length} simulation{simulations.length !== 1 ? 's' : ''}
-          </p>
-        </div>
+    <Box>
+      <DashboardPageHero
+        kicker="Practice floor"
+        title="Simulations"
+        description={
+          canCreate
+            ? 'Design scenarios, tune personas, and ship realistic call practice for your team. Reps see only what you mark active.'
+            : 'Pick a scenario, dial in, and get scored like a real buyer conversation. Each run builds muscle memory for discovery, objections, and close.'
+        }
+      />
+      <HStack justify="space-between" align="flex-start" mb={6} flexDir={{ base: 'column', sm: 'row' }} gap={4}>
+        <Box>
+          <Heading size="md" color="gray.800">
+            Library
+          </Heading>
+          <Text color="gray.500" fontSize="sm" mt={1}>
+            {simulations.length} simulation{simulations.length !== 1 ? 's' : ''} available
+          </Text>
+        </Box>
         {canCreate && (
-          <Link href="/dashboard/simulations/new" className="btn-primary">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-4 h-4"
-            >
-              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-            </svg>
+          <Button as={Link} href="/dashboard/simulations/new" colorScheme="blue" leftIcon={<Icon viewBox="0 0 20 20" boxSize={4}><path fill="currentColor" d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" /></Icon>}>
             New Simulation
-          </Link>
+          </Button>
         )}
-      </div>
+      </HStack>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by title or persona…"
-          className="input flex-1"
-        />
-        <div className="flex gap-2 shrink-0">
-          {(['all', 'easy', 'medium', 'hard'] as const).map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => setDifficultyFilter(d)}
-              className={`rounded-lg border px-3 py-2 text-sm font-medium capitalize transition-colors ${
-                difficultyFilter === d
-                  ? 'bg-blue-600 border-blue-600 text-white'
-                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {d}
-            </button>
-          ))}
-        </div>
-      </div>
+      <HStack mb={6} flexDir={{ base: 'column', sm: 'row' }} gap={3} align={{ base: 'stretch', sm: 'center' }}>
+        <InputGroup flex={1}>
+          <InputLeftElement pointerEvents="none">
+            <SearchIcon />
+          </InputLeftElement>
+          <Input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by title or persona…"
+            pl={10}
+          />
+        </InputGroup>
+      </HStack>
 
-      {/* Cards */}
       {filtered.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
-          <p className="text-lg font-medium">No simulations found</p>
-          <p className="text-sm mt-1">
+        <VStack py={16} color="gray.400" spacing={2}>
+          <Text fontSize="lg" fontWeight="medium">
+            No simulations found
+          </Text>
+          <Text fontSize="sm" textAlign="center">
             {simulations.length === 0
               ? canCreate
                 ? 'Create your first simulation to get started.'
                 : 'No simulations are available yet.'
-              : 'Try adjusting your search or filter.'}
-          </p>
-        </div>
+              : 'Try adjusting your search.'}
+          </Text>
+        </VStack>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={4}>
           {filtered.map((s) => (
             <Link
               key={s.id}
               href={`/dashboard/simulations/${s.id}`}
-              className="card hover:shadow-md hover:border-slate-300 transition-all group block"
+              _hover={{ textDecoration: 'none' }}
             >
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <h3 className="font-semibold text-slate-900 text-sm leading-snug group-hover:text-blue-600 transition-colors line-clamp-2">
-                  {s.title}
-                </h3>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <DifficultyBadge difficulty={s.difficulty} />
-                </div>
-              </div>
+              <Box
+                borderWidth="1px"
+                borderRadius="xl"
+                p={5}
+                bg="white"
+                boxShadow="sm"
+                h="full"
+                transition="box-shadow 0.15s, border-color 0.15s"
+                _hover={{ boxShadow: 'md', borderColor: 'gray.300' }}
+              >
+                <HStack justify="space-between" align="flex-start" mb={3} spacing={2}>
+                  <Text fontWeight="semibold" fontSize="sm" noOfLines={2} color="gray.800">
+                    {s.title}
+                  </Text>
+                  {showMetaBadges && <DifficultyBadge difficulty={s.difficulty} />}
+                </HStack>
 
-              <p className="text-xs text-slate-500 mb-1">
-                <span className="font-medium text-slate-600">{s.persona_name}</span>
-              </p>
+                <Text fontSize="xs" color="gray.600" fontWeight="medium" mb={1}>
+                  {s.persona_name}
+                </Text>
 
-              <p className="text-xs text-slate-500 line-clamp-2 mb-3">{s.call_goal}</p>
+                <Text fontSize="xs" color="gray.500" noOfLines={2} mb={3}>
+                  {s.call_goal}
+                </Text>
 
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${
-                    s.is_active
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${s.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`}
-                  />
-                  {s.is_active ? 'Active' : 'Inactive'}
-                </span>
-                <span>v{s.version}</span>
-              </div>
+                <HStack justify="space-between" fontSize="xs" color="gray.400">
+                  {showMetaBadges ? (
+                    <Badge
+                      colorScheme={s.is_active ? 'green' : 'gray'}
+                      variant="subtle"
+                      display="inline-flex"
+                      alignItems="center"
+                      gap={1}
+                    >
+                      <Box as="span" w={1.5} h={1.5} borderRadius="full" bg={s.is_active ? 'green.400' : 'gray.400'} />
+                      {s.is_active ? 'Active' : 'Inactive'}
+                    </Badge>
+                  ) : (
+                    <Box />
+                  )}
+                  <Text>v{s.version}</Text>
+                </HStack>
+              </Box>
             </Link>
           ))}
-        </div>
+        </SimpleGrid>
       )}
-    </div>
+    </Box>
   )
 }

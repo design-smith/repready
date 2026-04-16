@@ -8,9 +8,10 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except static assets and Next.js internals.
-     * Auth checks happen in updateSession; static files are excluded for performance.
+     * Skip all /_next/* (dev + prod internals, not only static), images, favicon.
+     * A narrow _next/static-only skip can still run middleware on other /_next routes
+     * and contribute to flaky dev + missing chunk 404s.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

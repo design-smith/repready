@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import DashboardPageHero from '@/components/DashboardPageHero'
 import type { Profile } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -157,10 +158,15 @@ export default async function ProgressPage({
     : null
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
+      <DashboardPageHero
+        kicker="Your trajectory"
+        title="Progress"
+        description="Scores over time, rubric categories, and talk-track habits — so you can see momentum, not just individual calls."
+      />
       <div className="flex items-start justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Progress</h1>
+          <h1 className="text-lg font-semibold text-slate-800">Overview</h1>
           {targetRep && (
             <p className="text-sm text-slate-500 mt-0.5">
               Viewing: {targetRep.full_name || targetRep.email}

@@ -1,5 +1,16 @@
 export type Role = 'admin' | 'trainer' | 'rep'
 export type Difficulty = 'easy' | 'medium' | 'hard'
+export type PersonaVoice =
+  | 'alloy'
+  | 'ash'
+  | 'ballad'
+  | 'cedar'
+  | 'coral'
+  | 'echo'
+  | 'marin'
+  | 'sage'
+  | 'shimmer'
+  | 'verse'
 
 export interface Profile {
   id: string
@@ -23,6 +34,7 @@ export interface Simulation {
   call_goal: string
   persona_name: string
   persona_role: string
+  persona_voice: PersonaVoice
   persona_style: string
   company_context: string
   opening_line: string

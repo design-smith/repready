@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { requireRole, errorResponse } from '@/lib/api-helpers'
+import { isMissingPersonaVoiceColumnError } from '@/lib/supabase/schemaCompat'
+import { resolvePersonaVoice } from '@/lib/voices'
 import type { SimulationFormData, Simulation } from '@/types'
 
 // ---------------------------------------------------------------
@@ -114,28 +116,43 @@ export async function PUT(
   }
 
   // Apply the update and increment the version counter
-  const { data: updated, error: updateError } = await admin
+  const updatePayload = {
+    title: (body.title as string).trim(),
+    difficulty: body.difficulty,
+    call_goal: (body.call_goal as string).trim(),
+    persona_name: (body.persona_name as string).trim(),
+    persona_role: (body.persona_role as string).trim(),
+    persona_voice: resolvePersonaVoice(body.persona_name, body.persona_voice),
+    persona_style: (body.persona_style as string).trim(),
+    company_context: (body.company_context as string).trim(),
+    opening_line: (body.opening_line as string).trim(),
+    hidden_objections: body.hidden_objections,
+    allowed_disclosures: body.allowed_disclosures,
+    forbidden_disclosures: body.forbidden_disclosures,
+    success_criteria: (body.success_criteria as string).trim(),
+    scoring_rubric: body.scoring_rubric,
+    is_active: body.is_active,
+    version: current.version + 1,
+  }
+
+  let { data: updated, error: updateError } = await admin
     .from('simulations')
-    .update({
-      title: (body.title as string).trim(),
-      difficulty: body.difficulty,
-      call_goal: (body.call_goal as string).trim(),
-      persona_name: (body.persona_name as string).trim(),
-      persona_role: (body.persona_role as string).trim(),
-      persona_style: (body.persona_style as string).trim(),
-      company_context: (body.company_context as string).trim(),
-      opening_line: (body.opening_line as string).trim(),
-      hidden_objections: body.hidden_objections,
-      allowed_disclosures: body.allowed_disclosures,
-      forbidden_disclosures: body.forbidden_disclosures,
-      success_criteria: (body.success_criteria as string).trim(),
-      scoring_rubric: body.scoring_rubric,
-      is_active: body.is_active,
-      version: current.version + 1,
-    })
+    .update(updatePayload)
     .eq('id', params.id)
     .select()
     .single()
+
+  if (updateError && isMissingPersonaVoiceColumnError(updateError)) {
+    const { persona_voice: _personaVoice, ...legacyPayload } = updatePayload
+    const retry = await admin
+      .from('simulations')
+      .update(legacyPayload)
+      .eq('id', params.id)
+      .select()
+      .single()
+    updated = retry.data
+    updateError = retry.error
+  }
 
   if (updateError) {
     console.error('[PUT /api/simulations]', updateError)

@@ -1,9 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Alert, AlertIcon, AlertTitle, Box, Text } from '@chakra-ui/react'
 import DynamicList from '@/components/DynamicList'
 import RubricEditor from '@/components/RubricEditor'
+import {
+  DEFAULT_PERSONA_VOICE,
+  PERSONA_VOICE_OPTIONS,
+  resolvePersonaVoice,
+} from '@/lib/voices'
 import type { Simulation, SimulationFormData, RubricCategory, Difficulty } from '@/types'
 
 const DEFAULT_RUBRIC: RubricCategory[] = [
@@ -21,6 +27,7 @@ function blankForm(): SimulationFormData {
     call_goal: '',
     persona_name: '',
     persona_role: '',
+    persona_voice: DEFAULT_PERSONA_VOICE,
     persona_style: '',
     company_context: '',
     opening_line: '',
@@ -41,6 +48,7 @@ interface SimulationFormProps {
 
 export default function SimulationForm({ mode, initialData, templateData }: SimulationFormProps) {
   const router = useRouter()
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const [form, setForm] = useState<SimulationFormData>(() => {
     if (initialData) {
@@ -50,6 +58,7 @@ export default function SimulationForm({ mode, initialData, templateData }: Simu
         call_goal: initialData.call_goal,
         persona_name: initialData.persona_name,
         persona_role: initialData.persona_role,
+        persona_voice: resolvePersonaVoice(initialData.persona_name, initialData.persona_voice),
         persona_style: initialData.persona_style,
         company_context: initialData.company_context,
         opening_line: initialData.opening_line,
@@ -62,16 +71,72 @@ export default function SimulationForm({ mode, initialData, templateData }: Simu
       }
     }
     if (templateData) {
-      return templateData
+      return {
+        ...templateData,
+        persona_voice: resolvePersonaVoice(templateData.persona_name, templateData.persona_voice),
+      }
     }
     return blankForm()
   })
 
   const [submitting, setSubmitting] = useState(false)
+  const [previewingVoice, setPreviewingVoice] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
+
+  useEffect(() => {
+    if (!previewUrl || !audioRef.current) return
+
+    audioRef.current.src = previewUrl
+    audioRef.current.play().catch(() => {})
+  }, [previewUrl])
 
   function set<K extends keyof SimulationFormData>(key: K, value: SimulationFormData[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  async function handlePreviewVoice() {
+    setPreviewError(null)
+    setPreviewingVoice(true)
+
+    try {
+      const res = await fetch('/api/voices/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          persona_name: form.persona_name,
+          persona_role: form.persona_role,
+          persona_style: form.persona_style,
+          persona_voice: form.persona_voice,
+          opening_line: form.opening_line,
+        }),
+      })
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        throw new Error(json?.error ?? 'Failed to generate preview audio.')
+      }
+
+      const blob = await res.blob()
+      const nextUrl = URL.createObjectURL(blob)
+
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      if (audioRef.current) {
+        audioRef.current.pause()
+      }
+      setPreviewUrl(nextUrl)
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : 'Failed to generate preview audio.')
+    } finally {
+      setPreviewingVoice(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -108,6 +173,17 @@ export default function SimulationForm({ mode, initialData, templateData }: Simu
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8 max-w-3xl">
+      {mode === 'edit' && (
+        <Alert status="warning" variant="subtle" borderRadius="xl" borderWidth="1px" borderColor="orange.200">
+          <AlertIcon />
+          <Box>
+            <AlertTitle fontSize="sm">Versioning</AlertTitle>
+            <Text fontSize="sm" color="gray.700" mt={1}>
+              Saving creates a new version. Sessions already started on the previous version are not changed.
+            </Text>
+          </Box>
+        </Alert>
+      )}
       {/* ---- Section 1: Basic Info ---- */}
       <div className="card">
         <h2 className="section-title">Basic Info</h2>
@@ -216,6 +292,50 @@ export default function SimulationForm({ mode, initialData, templateData }: Simu
                 placeholder="e.g. VP of Sales"
               />
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="persona_voice" className="label">
+              Voice <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="persona_voice"
+              className="input"
+              value={form.persona_voice}
+              onChange={(e) => set('persona_voice', e.target.value as SimulationFormData['persona_voice'])}
+            >
+              {PERSONA_VOICE_OPTIONS.map((voice) => (
+                <option key={voice.id} value={voice.id}>
+                  {voice.label} — {voice.description}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-slate-500">
+              Pick the ElevenLabs voice that fits the persona. This is what reps will hear on the live call.
+            </p>
+            <div className="mt-3 flex items-center gap-3 flex-wrap">
+              <button
+                type="button"
+                onClick={handlePreviewVoice}
+                disabled={previewingVoice}
+                className="btn-secondary disabled:opacity-50"
+              >
+                {previewingVoice ? 'Generating preview…' : 'Preview voice'}
+              </button>
+              <span className="text-xs text-slate-500">
+                Uses the opening line when present, otherwise a short fallback intro.
+              </span>
+            </div>
+            {previewError && (
+              <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                {previewError}
+              </p>
+            )}
+            {previewUrl && (
+              <audio ref={audioRef} controls className="mt-3 w-full" src={previewUrl}>
+                Your browser does not support audio playback.
+              </audio>
+            )}
           </div>
 
           <div>

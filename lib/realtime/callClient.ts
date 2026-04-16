@@ -1,7 +1,7 @@
 // BROWSER ONLY — do not import in server components, API routes, or any file
 // that does not have 'use client'. Uses WebSocket, AudioContext, getUserMedia.
 
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 import type { TranscriptTurn, PersonaState, HintType } from '@/types'
 
 export type CallStatus = 'connecting' | 'active' | 'ended'
@@ -27,9 +27,8 @@ export class CallClient {
   private audioContext: AudioContext | null = null
   private mediaStream: MediaStream | null = null
   private scriptProcessor: ScriptProcessorNode | null = null
+  private monitorNode: GainNode | null = null
 
-  // Playback queue
-  private pendingChunks: Float32Array<ArrayBuffer>[] = []
   private isPlaying = false
   private currentSource: AudioBufferSourceNode | null = null
 
@@ -45,12 +44,15 @@ export class CallClient {
   // Turn tracking
   private turnCounter = 0
   private sessionOpened = false
+  private shuttingDown = false
+  private responseInFlight = false
 
   constructor(
     private readonly sessionId: string,
     private readonly ephemeralToken: string,
     private readonly initialSystemPrompt: string,
-    private readonly openingLine: string
+    private readonly openingLine: string,
+    private readonly personaVoice: string
   ) {}
 
   // ---------------------------------------------------------------
@@ -58,24 +60,28 @@ export class CallClient {
   // ---------------------------------------------------------------
 
   async connect(): Promise<void> {
+    this.shuttingDown = false
     this.onStatusChange?.('connecting')
     await this.setupAudio()
 
     this.ws = new WebSocket(
-      'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17',
+      'wss://api.openai.com/v1/realtime?model=gpt-realtime',
       ['realtime', `openai-insecure-api-key.${this.ephemeralToken}`, 'openai-beta.realtime-v1']
     )
 
     this.ws.onopen = () => {
+      this.responseInFlight = false
       this.sendEvent({
         type: 'session.update',
         session: {
           instructions: this.initialSystemPrompt,
-          voice: 'shimmer',
           input_audio_format: 'pcm16',
-          output_audio_format: 'pcm16',
           input_audio_transcription: { model: 'whisper-1' },
-          turn_detection: { type: 'server_vad', silence_duration_ms: 800 },
+          turn_detection: {
+            type: 'server_vad',
+            silence_duration_ms: 800,
+            create_response: false,
+          },
         },
       })
     }
@@ -89,24 +95,27 @@ export class CallClient {
     }
 
     this.ws.onerror = () => {
+      if (this.shuttingDown) return
       this.onError?.('WebSocket connection error')
     }
 
     this.ws.onclose = () => {
-      this.stopMic()
-      if (this.audioContext?.state !== 'closed') {
-        this.audioContext?.close()
-      }
+      void this.teardownAudio()
     }
   }
 
   async endCall(): Promise<EndCallResult> {
+    this.shuttingDown = true
+
     // Stop recording and collect final chunks
     await this.stopRecorders()
 
-    this.stopMic()
-    this.drainAudio()
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.sendEvent({ type: 'response.cancel' })
+    }
+
     this.ws?.close()
+    await this.teardownAudio()
 
     // Upload audio to Supabase Storage (best-effort — don't block on failure)
     this.uploadAudio().catch((err) =>
@@ -137,6 +146,8 @@ export class CallClient {
 
     const source = this.audioContext.createMediaStreamSource(this.mediaStream)
     this.scriptProcessor = this.audioContext.createScriptProcessor(4096, 1, 1)
+    this.monitorNode = this.audioContext.createGain()
+    this.monitorNode.gain.value = 0
 
     this.scriptProcessor.onaudioprocess = (event) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return
@@ -156,7 +167,8 @@ export class CallClient {
     }
 
     source.connect(this.scriptProcessor)
-    this.scriptProcessor.connect(this.audioContext.destination)
+    this.scriptProcessor.connect(this.monitorNode)
+    this.monitorNode.connect(this.audioContext.destination)
 
     // Start MediaRecorder instances
     this.startRecorders()
@@ -224,76 +236,131 @@ export class CallClient {
       return
     }
 
-    const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
+    const supabase = createSupabaseClient()
 
     const mimeType = this.repChunks[0]?.type || 'audio/webm'
     const repFile = new Blob(this.repChunks, { type: mimeType })
     const personaFile = new Blob(this.personaChunks, { type: mimeType })
 
-    await Promise.allSettled([
-      repFile.size > 0 &&
+    const uploads: Promise<unknown>[] = []
+
+    if (repFile.size > 0) {
+      uploads.push(
         supabase.storage
           .from(bucket)
-          .upload(`sessions/${this.sessionId}/rep.webm`, repFile, { upsert: true }),
-      personaFile.size > 0 &&
+          .upload(`sessions/${this.sessionId}/rep.webm`, repFile, {
+            upsert: true,
+            contentType: mimeType,
+          })
+          .then(({ error }) => {
+            if (error) console.warn('[CallClient] rep audio upload failed:', error)
+          })
+      )
+    }
+
+    if (personaFile.size > 0) {
+      uploads.push(
         supabase.storage
           .from(bucket)
-          .upload(`sessions/${this.sessionId}/persona.webm`, personaFile, { upsert: true }),
-    ])
+          .upload(`sessions/${this.sessionId}/persona.webm`, personaFile, {
+            upsert: true,
+            contentType: mimeType,
+          })
+          .then(({ error }) => {
+            if (error) console.warn('[CallClient] persona audio upload failed:', error)
+          })
+      )
+    }
+
+    await Promise.allSettled(uploads)
   }
 
   // ---------------------------------------------------------------
   // Audio playback
   // ---------------------------------------------------------------
 
-  private enqueueAudio(base64: string): void {
-    const binary = atob(base64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  private async speakText(text: string): Promise<void> {
+    if (this.shuttingDown || !this.audioContext) return
 
-    const int16 = new Int16Array(bytes.buffer)
-    const float32 = new Float32Array(int16.length) as Float32Array<ArrayBuffer>
-    for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32767
+    try {
+      const response = await fetch('/api/voices/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          persona_voice: this.personaVoice,
+        }),
+      })
 
-    this.pendingChunks.push(float32)
-    if (!this.isPlaying) this.playNextChunk()
-  }
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error ?? 'Failed to generate persona speech')
+      }
 
-  private playNextChunk(): void {
-    if (!this.audioContext || this.pendingChunks.length === 0) {
-      this.isPlaying = false
-      return
+      const audio = await response.arrayBuffer()
+      if (this.shuttingDown || !this.audioContext) return
+
+      const decoded = await this.audioContext.decodeAudioData(audio.slice(0))
+      if (this.shuttingDown) return
+
+      this.drainAudio()
+      this.isPlaying = true
+      this.onSpeakingChange?.('persona')
+
+      const source = this.audioContext.createBufferSource()
+      source.buffer = decoded
+      source.connect(this.audioContext.destination)
+      if (this.personaDestination) {
+        source.connect(this.personaDestination)
+      }
+      source.onended = () => {
+        if (this.currentSource === source) {
+          this.currentSource = null
+        }
+        this.isPlaying = false
+        this.onSpeakingChange?.('idle')
+      }
+      source.start()
+      this.currentSource = source
+    } catch (error) {
+      console.error('[CallClient] ElevenLabs playback failed', error)
+      this.onError?.(error instanceof Error ? error.message : 'Persona speech playback failed')
     }
-    this.isPlaying = true
-
-    const chunk = this.pendingChunks.shift()!
-    const buffer = this.audioContext.createBuffer(1, chunk.length, 24000)
-    buffer.copyToChannel(chunk, 0)
-
-    const source = this.audioContext.createBufferSource()
-    source.buffer = buffer
-    // Connect to speaker output
-    source.connect(this.audioContext.destination)
-    // Also pipe into the persona recorder's destination node
-    if (this.personaDestination) {
-      source.connect(this.personaDestination)
-    }
-    source.onended = () => this.playNextChunk()
-    source.start()
-
-    this.currentSource = source
   }
 
   private drainAudio(): void {
     try { this.currentSource?.stop() } catch { /* already ended */ }
-    this.pendingChunks = []
     this.isPlaying = false
     this.currentSource = null
+    this.onSpeakingChange?.('idle')
   }
 
   private stopMic(): void {
+    if (this.scriptProcessor) {
+      this.scriptProcessor.onaudioprocess = null
+    }
     this.scriptProcessor?.disconnect()
+    this.monitorNode?.disconnect()
+    this.scriptProcessor = null
     this.mediaStream?.getTracks().forEach((t) => t.stop())
+    this.mediaStream = null
+  }
+
+  private async teardownAudio(): Promise<void> {
+    this.stopMic()
+    this.drainAudio()
+
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      try {
+        await this.audioContext.close()
+      } catch {
+        // Ignore close races during teardown.
+      }
+    }
+
+    this.audioContext = null
+    this.personaDestination = null
+    this.monitorNode = null
   }
 
   // ---------------------------------------------------------------
@@ -306,7 +373,15 @@ export class CallClient {
     }
   }
 
+  private requestResponse(): void {
+    if (this.shuttingDown || this.responseInFlight) return
+    this.responseInFlight = true
+    this.sendEvent({ type: 'response.create' })
+  }
+
   private handleMessage(msg: Record<string, unknown>): void {
+    if (this.shuttingDown) return
+
     const type = msg.type as string
 
     switch (type) {
@@ -314,15 +389,7 @@ export class CallClient {
         if (!this.sessionOpened) {
           this.sessionOpened = true
           this.onStatusChange?.('active')
-          this.sendEvent({
-            type: 'conversation.item.create',
-            item: {
-              type: 'message',
-              role: 'assistant',
-              content: [{ type: 'input_text', text: this.openingLine }],
-            },
-          })
-          this.sendEvent({ type: 'response.create' })
+          this.requestResponse()
         }
         break
       }
@@ -333,15 +400,6 @@ export class CallClient {
         break
       }
 
-      case 'response.audio.delta': {
-        const delta = (msg as { delta?: string }).delta
-        if (delta) {
-          if (!this.isPlaying) this.onSpeakingChange?.('persona')
-          this.enqueueAudio(delta)
-        }
-        break
-      }
-
       case 'conversation.item.input_audio_transcription.completed': {
         const transcript = (msg as { transcript?: string }).transcript ?? ''
         if (transcript.trim()) {
@@ -349,6 +407,24 @@ export class CallClient {
           const turnNumber = this.turnCounter
           this.onTranscriptUpdate?.({ turn_number: turnNumber, speaker: 'rep', content: transcript })
           this.postRepTurn(transcript, turnNumber)
+          this.requestResponse()
+        }
+        break
+      }
+
+      case 'response.output_text.done':
+      case 'response.text.done': {
+        const transcript =
+          (msg as { text?: string }).text ??
+          (msg as { delta?: string }).delta ??
+          ''
+
+        if (transcript.trim()) {
+          this.turnCounter++
+          const turnNumber = this.turnCounter
+          this.onTranscriptUpdate?.({ turn_number: turnNumber, speaker: 'persona', content: transcript })
+          this.postPersonaTurn(transcript, turnNumber)
+          void this.speakText(transcript)
         }
         break
       }
@@ -360,18 +436,27 @@ export class CallClient {
           const turnNumber = this.turnCounter
           this.onTranscriptUpdate?.({ turn_number: turnNumber, speaker: 'persona', content: transcript })
           this.postPersonaTurn(transcript, turnNumber)
+          void this.speakText(transcript)
         }
         break
       }
 
       case 'response.done': {
-        this.onSpeakingChange?.('idle')
+        this.responseInFlight = false
+        if (!this.isPlaying) {
+          this.onSpeakingChange?.('idle')
+        }
         break
       }
 
       case 'error': {
         const errMsg = (msg as { error?: { message?: string } }).error?.message ?? 'Unknown OpenAI error'
         console.error('[CallClient] OpenAI error event:', errMsg)
+        if (errMsg.toLowerCase().includes('active response in progress')) {
+          this.responseInFlight = true
+          break
+        }
+        this.responseInFlight = false
         this.onError?.(errMsg)
         break
       }

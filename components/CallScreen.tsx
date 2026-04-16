@@ -1,22 +1,20 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCallSession } from '@/hooks/useCallSession'
-import DifficultyBadge from '@/components/DifficultyBadge'
-import type { Difficulty, HintType } from '@/types'
+import type { HintType } from '@/types'
 
 interface SimulationMeta {
   id: string
   title: string
   persona_name: string
-  persona_role: string
-  difficulty: Difficulty
 }
 
 export default function CallScreen({ simulation }: { simulation: SimulationMeta }) {
   const router = useRouter()
-  const { status, transcript, personaState, isSpeaking, currentHint, startCall, endCall, error } =
+  const [showSuggestion, setShowSuggestion] = useState(false)
+  const { status, transcript, personaState, isSpeaking, currentHint, startCall, endCall } =
     useCallSession()
 
   const transcriptEndRef = useRef<HTMLDivElement>(null)
@@ -40,143 +38,165 @@ export default function CallScreen({ simulation }: { simulation: SimulationMeta 
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col">
-      {/* Persona header */}
-      <div className="bg-slate-800 border-b border-slate-700 px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+    <div className="h-screen bg-white text-slate-900 overflow-hidden">
+      <div className="border-b border-slate-800 px-4 py-4 bg-slate-950">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-white font-semibold">{simulation.persona_name}</span>
-              <DifficultyBadge difficulty={simulation.difficulty} />
-            </div>
-            <p className="text-slate-400 text-xs mt-0.5">{simulation.persona_role}</p>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-slate-300">Live call</p>
+            <h1 className="text-lg font-semibold tracking-tight text-white">{simulation.persona_name}</h1>
           </div>
-          <div className="text-xs text-slate-400">{simulation.title}</div>
+          <div className="text-right">
+            <p className="text-[10px] uppercase tracking-[0.25em] text-slate-300">Scenario</p>
+            <p className="text-sm text-white font-semibold max-w-[320px] leading-snug">{simulation.title}</p>
+          </div>
         </div>
       </div>
 
-      {/* Main area */}
-      <div className="flex-1 flex flex-col items-center justify-between max-w-2xl mx-auto w-full px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-4 h-[calc(100vh-81px)] grid grid-cols-1 xl:grid-cols-[minmax(0,1.1fr)_420px] gap-4 overflow-hidden">
+        <section className="rounded-3xl border border-slate-800 bg-slate-950 shadow-sm px-6 py-6 flex flex-col justify-between text-white min-h-0 overflow-hidden">
+          <div className="flex-1 flex flex-col items-center justify-center gap-5">
+            {status === 'connecting' ? (
+              <>
+                <div className="w-28 h-28 rounded-full bg-slate-900 flex items-center justify-center border border-slate-700">
+                  <svg
+                    className="animate-spin w-10 h-10 text-slate-400"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                </div>
+                <p className="text-slate-300 text-sm">Connecting...</p>
+              </>
+            ) : isSpeaking === 'persona' ? (
+              <>
+                <div className="relative">
+                  <div className="w-32 h-32 rounded-full bg-cyan-500/85 animate-pulse shadow-[0_0_90px_rgba(34,211,238,0.35)]" />
+                  <div className="absolute inset-0 rounded-full border border-cyan-200/20 animate-ping" />
+                </div>
+                <p className="text-cyan-100 text-sm font-medium">{simulation.persona_name} is speaking...</p>
+              </>
+            ) : isSpeaking === 'rep' ? (
+              <>
+                <div className="relative">
+                  <div className="w-32 h-32 rounded-full bg-emerald-500/85 animate-pulse shadow-[0_0_90px_rgba(16,185,129,0.35)]" />
+                  <div className="absolute inset-0 rounded-full border border-emerald-200/20 animate-ping" />
+                </div>
+                <p className="text-emerald-100 text-sm font-medium">Listening...</p>
+              </>
+            ) : (
+              <>
+                <div className="w-32 h-32 rounded-full bg-slate-900 border border-slate-700" />
+                <p className="text-slate-300 text-sm">
+                  {status === 'active' ? 'Ready when you are' : status === 'ended' ? 'Call ended' : 'Connecting...'}
+                </p>
+              </>
+            )}
 
-        {/* Speaking indicator orb */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          {status === 'connecting' ? (
-            <>
-              <div className="w-24 h-24 rounded-full bg-slate-700 flex items-center justify-center">
-                <svg
-                  className="animate-spin w-10 h-10 text-slate-400"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
+            {status === 'active' && (
+              <div className="flex gap-4 mt-2">
+                <StateBar label="Trust" value={personaState.trust} color="bg-cyan-400" />
+                <StateBar label="Patience" value={personaState.patience} color="bg-amber-400" />
               </div>
-              <p className="text-slate-400 text-sm">Connecting…</p>
-            </>
-          ) : isSpeaking === 'persona' ? (
-            <>
-              <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-blue-600 animate-pulse" />
-                <div className="absolute inset-0 w-24 h-24 rounded-full bg-blue-400 opacity-30 animate-ping" />
-              </div>
-              <p className="text-blue-300 text-sm font-medium">{simulation.persona_name} is speaking…</p>
-            </>
-          ) : isSpeaking === 'rep' ? (
-            <>
-              <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-emerald-600 animate-pulse" />
-                <div className="absolute inset-0 w-24 h-24 rounded-full bg-emerald-400 opacity-30 animate-ping" />
-              </div>
-              <p className="text-emerald-300 text-sm font-medium">Listening…</p>
-            </>
-          ) : (
-            <>
-              <div className="w-24 h-24 rounded-full bg-slate-700" />
-              <p className="text-slate-500 text-sm">
-                {status === 'active' ? 'Ready' : status === 'ended' ? 'Call ended' : 'Connecting…'}
-              </p>
-            </>
-          )}
+            )}
+          </div>
 
-          {/* Persona state bars */}
-          {status === 'active' && (
-            <div className="flex gap-4 mt-2">
-              <StateBar label="Trust" value={personaState.trust} color="bg-blue-500" />
-              <StateBar label="Patience" value={personaState.patience} color="bg-amber-500" />
-            </div>
-          )}
-        </div>
-
-        {/* Transcript feed */}
-        {transcript.length > 0 && (
-          <div className="w-full max-h-64 overflow-y-auto space-y-2 mb-4 px-1">
-            {transcript.map((turn) => (
-              <div
-                key={`${turn.turn_number}-${turn.speaker}`}
-                className={`flex ${turn.speaker === 'rep' ? 'justify-end' : 'justify-start'}`}
+          <div className="pt-6 flex flex-col items-center gap-4">
+            <button
+              type="button"
+              onClick={handleEndCall}
+              disabled={status !== 'active'}
+              className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors shadow-lg"
+              aria-label="End call"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="w-7 h-7 text-white rotate-[135deg]"
               >
-                <div
-                  className={`max-w-xs lg:max-w-sm rounded-2xl px-4 py-2 text-sm ${
-                    turn.speaker === 'rep'
-                      ? 'bg-blue-600 text-white rounded-br-sm'
-                      : 'bg-slate-700 text-slate-100 rounded-bl-sm'
-                  }`}
-                >
-                  {turn.content}
+                <path
+                  fillRule="evenodd"
+                  d="M1.5 4.5a3 3 0 013-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 01-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 006.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 011.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 01-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+            <p className="text-slate-300 text-xs">End call</p>
+          </div>
+        </section>
+
+        <aside className="rounded-3xl border border-slate-800 bg-slate-950 shadow-sm overflow-hidden flex flex-col min-h-0 text-white">
+          <div className="border-b border-slate-800 px-5 py-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.25em] text-slate-300">Conversation</p>
+              <h2 className="text-sm font-semibold text-white">Transcript</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSuggestion((open) => !open)}
+              className="inline-flex items-center rounded-full border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 transition-colors"
+            >
+              What should I say?
+            </button>
+          </div>
+
+          {showSuggestion && (
+            <div className="border-b border-slate-800 px-5 py-4 bg-slate-950">
+              <div
+                className={`rounded-2xl px-4 py-3 text-sm flex items-start gap-3 ${
+                  currentHint
+                    ? currentHint.hint_type === 'warning'
+                      ? 'bg-amber-950/50 border border-amber-800/60 text-amber-100'
+                      : currentHint.hint_type === 'encouragement'
+                      ? 'bg-emerald-950/50 border border-emerald-800/60 text-emerald-100'
+                      : 'bg-cyan-950/50 border border-cyan-800/60 text-cyan-100'
+                    : 'bg-slate-900 border border-slate-700 text-slate-200'
+                }`}
+              >
+                <HintIcon type={currentHint?.hint_type ?? 'tip'} />
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.25em] mb-1 opacity-90">Coach</p>
+                  <p>
+                    {currentHint?.hint ??
+                      'No suggestion yet. Once the conversation develops, ask again and the latest coaching tip will show here.'}
+                  </p>
                 </div>
               </div>
-            ))}
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
+            {transcript.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-center text-sm text-slate-300 px-6">
+                The transcript will appear here as the call unfolds.
+              </div>
+            ) : (
+              transcript.map((turn) => (
+                <div
+                  key={`${turn.turn_number}-${turn.speaker}`}
+                  className={`flex ${turn.speaker === 'rep' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                      turn.speaker === 'rep'
+                        ? 'bg-cyan-700 text-white rounded-br-sm'
+                        : 'bg-slate-800 text-white rounded-bl-sm border border-slate-700'
+                    }`}
+                  >
+                    <p className="text-[10px] uppercase tracking-[0.2em] opacity-90 mb-1">
+                      {turn.speaker === 'rep' ? 'You' : simulation.persona_name}
+                    </p>
+                    {turn.content}
+                  </div>
+                </div>
+              ))
+            )}
             <div ref={transcriptEndRef} />
           </div>
-        )}
-
-        {/* Coaching hint toast — appears above End Call, never blocks it */}
-        {currentHint && (
-          <div
-            className={`w-full mb-4 rounded-xl px-4 py-3 flex items-start gap-3 text-sm ${
-              currentHint.hint_type === 'warning'
-                ? 'bg-amber-900/60 border border-amber-700 text-amber-200'
-                : currentHint.hint_type === 'encouragement'
-                ? 'bg-emerald-900/60 border border-emerald-700 text-emerald-200'
-                : 'bg-blue-900/60 border border-blue-700 text-blue-200'
-            }`}
-          >
-            <HintIcon type={currentHint.hint_type} />
-            <span>{currentHint.hint}</span>
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <p className="text-red-400 text-sm text-center mb-4 bg-red-900/30 rounded-lg px-4 py-2">
-            {error}
-          </p>
-        )}
-
-        {/* End Call button */}
-        <button
-          type="button"
-          onClick={handleEndCall}
-          disabled={status !== 'active'}
-          className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors shadow-lg"
-          aria-label="End call"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            className="w-7 h-7 text-white rotate-[135deg]"
-          >
-            <path
-              fillRule="evenodd"
-              d="M1.5 4.5a3 3 0 013-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 01-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 006.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 011.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 01-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </button>
-        <p className="text-slate-500 text-xs mt-2">End Call</p>
+        </aside>
       </div>
     </div>
   )
@@ -208,7 +228,7 @@ function StateBar({ label, value, color }: { label: string; value: number; color
   return (
     <div className="flex flex-col items-center gap-1">
       <span className="text-xs text-slate-400">{label}</span>
-      <div className="w-20 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+      <div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-500 ${color}`}
           style={{ width: `${Math.round(value * 100)}%` }}

@@ -1,8 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import {
+  Box,
+  Button,
+  ButtonGroup,
+  Flex,
+  Heading,
+  HStack,
+  Icon,
+  Text,
+} from '@chakra-ui/react'
+import { Link } from '@chakra-ui/next-js'
 import EvaluationPoller from '@/components/EvaluationPoller'
 import AnnotationPanel from '@/components/AnnotationPanel'
 import type {
@@ -54,38 +64,49 @@ export default function ResultsClient({
   const [hintsOpen, setHintsOpen] = useState(false)
 
   return (
-    <div className="max-w-3xl">
-      {/* Breadcrumb */}
-      <div className="mb-6">
-        <Link href="/dashboard/sessions" className="text-sm text-blue-600 hover:underline">
-          ← All Sessions
-        </Link>
-      </div>
+    <Box w="full">
+      <Button as={Link} href="/dashboard/sessions" variant="ghost" size="sm" color="gray.600" mb={6} pl={0}>
+        ← All sessions
+      </Button>
 
-      {/* Header banner */}
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-5 mb-6 flex items-start gap-4">
-        <div className="shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-emerald-600">
-            <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-          </svg>
-        </div>
-        <div>
-          <h1 className="text-base font-semibold text-emerald-900">Call Complete</h1>
-          <p className="text-sm text-emerald-700 mt-0.5">
-            {simulationTitle} &middot; Duration:{' '}
-            <span className="font-medium">{durationFormatted}</span>
-            {endedAt && (
-              <>
-                {' '}&middot;{' '}
-                {new Date(endedAt).toLocaleDateString(undefined, {
-                  month: 'short', day: 'numeric', year: 'numeric',
-                  hour: '2-digit', minute: '2-digit',
-                })}
-              </>
-            )}
-          </p>
-        </div>
-      </div>
+      <Box
+        borderRadius="2xl"
+        borderWidth="1px"
+        borderColor="emerald.200"
+        bgGradient="linear(to-br, emerald.50, white)"
+        px={{ base: 5, md: 8 }}
+        py={6}
+        mb={8}
+        boxShadow="sm"
+      >
+        <HStack align="flex-start" spacing={4}>
+          <FlexCircleIcon />
+          <Box>
+            <Text fontSize="xs" fontWeight="bold" color="emerald.700" textTransform="uppercase" letterSpacing="wider">
+              Call complete
+            </Text>
+            <Heading size="md" color="gray.900" mt={1}>
+              {simulationTitle}
+            </Heading>
+            <Text fontSize="sm" color="gray.600" mt={2}>
+              Duration <strong>{durationFormatted}</strong>
+              {endedAt && (
+                <>
+                  {' '}
+                  ·{' '}
+                  {new Date(endedAt).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </>
+              )}
+            </Text>
+          </Box>
+        </HStack>
+      </Box>
 
       {/* Evaluation — poller or full results */}
       {evaluation ? (
@@ -181,15 +202,41 @@ export default function ResultsClient({
         )}
       </div>
 
-      {/* Actions */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href={`/dashboard/sessions/call?simulation_id=${simulationId}`} className="btn-primary">
-          Practice Again
-        </Link>
-        <Link href="/dashboard/sessions" className="btn-secondary">View All Sessions</Link>
-        <Link href="/dashboard" className="btn-secondary">Dashboard</Link>
-      </div>
-    </div>
+      <ButtonGroup spacing={3} flexWrap="wrap" variant="outline">
+        <Button as={Link} href={`/dashboard/sessions/call?simulation_id=${simulationId}`} colorScheme="cyan">
+          Practice again
+        </Button>
+        <Button as={Link} href="/dashboard/sessions">
+          All sessions
+        </Button>
+        <Button as={Link} href="/dashboard">
+          Dashboard
+        </Button>
+      </ButtonGroup>
+    </Box>
+  )
+}
+
+function FlexCircleIcon() {
+  return (
+    <Flex
+      w={12}
+      h={12}
+      borderRadius="full"
+      bg="emerald.100"
+      align="center"
+      justify="center"
+      shrink={0}
+    >
+      <Icon viewBox="0 0 20 20" boxSize={6} color="emerald.600">
+        <path
+          fill="currentColor"
+          fillRule="evenodd"
+          d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+          clipRule="evenodd"
+        />
+      </Icon>
+    </Flex>
   )
 }
 

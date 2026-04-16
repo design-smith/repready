@@ -27,13 +27,11 @@ export function useCallSession(): UseCallSessionReturn {
   const [error, setError] = useState<string | null>(null)
 
   const clientRef = useRef<CallClient | null>(null)
-  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const startingRef = useRef(false)
 
   // Clean up on unmount — stop mic and end session if still active
   useEffect(() => {
     return () => {
-      if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
       if (clientRef.current) {
         clientRef.current.endCall().catch(() => {})
         clientRef.current = null
@@ -60,12 +58,25 @@ export function useCallSession(): UseCallSessionReturn {
         throw new Error(data.error ?? 'Failed to start session')
       }
 
-      const { session_id, ephemeral_token, initial_system_prompt, opening_line, persona_state } = data
+      const {
+        session_id,
+        ephemeral_token,
+        initial_system_prompt,
+        opening_line,
+        persona_voice,
+        persona_state,
+      } = data
 
       setSessionId(session_id)
       setPersonaState(persona_state)
 
-      const client = new CallClient(session_id, ephemeral_token, initial_system_prompt, opening_line)
+      const client = new CallClient(
+        session_id,
+        ephemeral_token,
+        initial_system_prompt,
+        opening_line,
+        persona_voice
+      )
 
       client.onStatusChange = (s) => setStatus(s)
       client.onSpeakingChange = (s) => setIsSpeaking(s)
@@ -86,9 +97,7 @@ export function useCallSession(): UseCallSessionReturn {
       client.onPersonaStateUpdate = (state) => setPersonaState(state)
 
       client.onCoachingHint = (hint, hint_type) => {
-        if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
         setCurrentHint({ hint, hint_type })
-        hintTimerRef.current = setTimeout(() => setCurrentHint(null), 6000)
       }
 
       clientRef.current = client

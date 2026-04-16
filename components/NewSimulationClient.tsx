@@ -1,17 +1,26 @@
 'use client'
 
 import { useState } from 'react'
+import {
+  Badge,
+  Box,
+  Button,
+  Heading,
+  HStack,
+  SimpleGrid,
+  Text,
+} from '@chakra-ui/react'
 import SimulationForm from '@/components/SimulationForm'
 import type { SimulationTemplate, SimulationFormData } from '@/types'
 
-const CATEGORY_COLORS: Record<string, string> = {
-  Discovery: 'bg-blue-50 text-blue-700 border-blue-200',
-  'Objection Handling': 'bg-amber-50 text-amber-700 border-amber-200',
-  Closing: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+const CATEGORY_SCHEME: Record<string, string> = {
+  Discovery: 'blue',
+  'Objection Handling': 'orange',
+  Closing: 'green',
 }
 
-function categoryStyle(category: string): string {
-  return CATEGORY_COLORS[category] ?? 'bg-slate-100 text-slate-600 border-slate-200'
+function categoryColor(category: string): string {
+  return CATEGORY_SCHEME[category] ?? 'gray'
 }
 
 export default function NewSimulationClient({
@@ -31,77 +40,83 @@ export default function NewSimulationClient({
   }
 
   return (
-    <div>
-      {/* Template picker */}
+    <Box>
       {showTemplates && (
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-slate-700">Start from a template</h2>
-            <button
-              type="button"
-              onClick={() => setShowTemplates(false)}
-              className="text-xs text-slate-400 hover:text-slate-600"
-            >
+        <Box mb={10}>
+          <HStack justify="space-between" align="center" mb={4}>
+            <Heading size="sm" color="gray.700">
+              Start from a template
+            </Heading>
+            <Button variant="ghost" size="sm" colorScheme="gray" onClick={() => setShowTemplates(false)}>
               Skip →
-            </button>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            </Button>
+          </HStack>
+          <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={4}>
             {templates.map((template) => (
-              <button
+              <Box
                 key={template.id}
+                as="button"
                 type="button"
+                textAlign="left"
                 onClick={() => applyTemplate(template)}
-                className="text-left rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50 p-4 transition-colors group"
+                borderWidth="1px"
+                borderColor="gray.200"
+                borderRadius="xl"
+                p={5}
+                bg="white"
+                boxShadow="sm"
+                transition="all 0.2s"
+                _hover={{
+                  borderColor: 'cyan.300',
+                  boxShadow: 'md',
+                  bg: 'cyan.50',
+                }}
               >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="text-sm font-semibold text-slate-900 group-hover:text-blue-800">
+                <HStack justify="space-between" align="flex-start" mb={2} gap={2}>
+                  <Text fontWeight="semibold" color="gray.800">
                     {template.title}
-                  </span>
-                  <span
-                    className={`text-xs font-medium rounded-full px-2 py-0.5 border shrink-0 ${categoryStyle(template.category)}`}
-                  >
+                  </Text>
+                  <Badge colorScheme={categoryColor(template.category)} variant="subtle" borderRadius="full">
                     {template.category}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 leading-relaxed">{template.description}</p>
-                <p className="text-xs text-blue-500 mt-2 group-hover:underline">Use template →</p>
-              </button>
+                  </Badge>
+                </HStack>
+                <Text fontSize="sm" color="gray.600" lineHeight="tall">
+                  {template.description}
+                </Text>
+                <Text fontSize="xs" fontWeight="semibold" color="cyan.600" mt={3}>
+                  Use template →
+                </Text>
+              </Box>
             ))}
-          </div>
-        </div>
+          </SimpleGrid>
+        </Box>
       )}
 
-      {/* Divider when templates are hidden */}
       {!showTemplates && templates.length > 0 && (
-        <div className="mb-6 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setShowTemplates(true)}
-            className="text-xs text-blue-600 hover:underline"
-          >
+        <HStack mb={8} spacing={4} flexWrap="wrap">
+          <Button variant="link" colorScheme="cyan" size="sm" onClick={() => setShowTemplates(true)}>
             ← Choose a different template
-          </button>
+          </Button>
           {templateData && (
-            <span className="text-xs text-slate-400">
+            <Text fontSize="sm" color="gray.500">
               or{' '}
-              <button
-                type="button"
-                onClick={() => { setTemplateData(null); setTemplateKey(null) }}
-                className="text-slate-500 hover:underline"
+              <Button
+                variant="link"
+                colorScheme="gray"
+                size="sm"
+                onClick={() => {
+                  setTemplateData(null)
+                  setTemplateKey(null)
+                }}
               >
                 start blank
-              </button>
-            </span>
+              </Button>
+            </Text>
           )}
-        </div>
+        </HStack>
       )}
 
-      {/* Form — key forces re-mount when template changes */}
-      <SimulationForm
-        key={templateKey ?? 'blank'}
-        mode="create"
-        templateData={templateData ?? undefined}
-      />
-    </div>
+      <SimulationForm key={templateKey ?? 'blank'} mode="create" templateData={templateData ?? undefined} />
+    </Box>
   )
 }

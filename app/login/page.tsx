@@ -2,6 +2,20 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import {
+  Alert,
+  AlertIcon,
+  Box,
+  Button,
+  FormControl,
+  FormLabel,
+  Grid,
+  GridItem,
+  Heading,
+  Input,
+  Stack,
+  Text,
+} from '@chakra-ui/react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
@@ -17,8 +31,6 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
 
-    // Lazy init — only create the client when the form is submitted,
-    // so the browser-only Supabase SDK is never called during SSR.
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
@@ -33,62 +45,85 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo / wordmark */}
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-slate-900">RepReady</h1>
-          <p className="mt-1 text-sm text-slate-500">Sales training, powered by AI</p>
-        </div>
+    <Grid minH="100vh" templateColumns={{ base: '1fr', lg: 'minmax(0, 1fr) minmax(0, 1fr)' }}>
+      <GridItem
+        display={{ base: 'none', lg: 'flex' }}
+        flexDirection="column"
+        justifyContent="center"
+        px={{ lg: 16, xl: 24 }}
+        py={12}
+        bgGradient="linear(160deg, gray.900 0%, cyan.800 40%, teal.700 100%)"
+        color="white"
+        position="relative"
+        overflow="hidden"
+      >
+        <Box
+          position="absolute"
+          inset={0}
+          opacity={0.15}
+          bgImage="radial-gradient(circle at 20% 30%, white 0%, transparent 45%), radial-gradient(circle at 80% 70%, white 0%, transparent 40%)"
+        />
+        <Stack spacing={6} position="relative" maxW="md">
+          <Text fontSize="sm" fontWeight="semibold" color="cyan.100" textTransform="uppercase" letterSpacing="wider">
+            RepReady
+          </Text>
+          <Heading size="2xl" lineHeight="shorter">
+            Liviniti's sales sandbox
+          </Heading>
+        </Stack>
+      </GridItem>
 
-        <div className="card">
-          <h2 className="text-lg font-semibold text-slate-900 mb-6">Sign in to your account</h2>
+      <GridItem display="flex" alignItems="center" justifyContent="center" px={4} py={12} bg="gray.50">
+        <Box w="full" maxW="md">
+          <Stack spacing={2} mb={8} textAlign={{ base: 'center', lg: 'left' }}>
+            <Heading size="lg">Welcome back</Heading>
+            <Text color="gray.500" fontSize="sm">
+              Sign in to continue training
+            </Text>
+          </Stack>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="label">
-                Email address
-              </label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="input"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-              />
-            </div>
+          <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="2xl" boxShadow="md" p={{ base: 6, md: 8 }}>
+            <form onSubmit={handleSubmit}>
+              <Stack spacing={5}>
+                <FormControl isRequired>
+                  <FormLabel>Email</FormLabel>
+                  <Input
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@company.com"
+                    size="lg"
+                  />
+                </FormControl>
 
-            <div>
-              <label htmlFor="password" className="label">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="input"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-              />
-            </div>
+                <FormControl isRequired>
+                  <FormLabel>Password</FormLabel>
+                  <Input
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    size="lg"
+                  />
+                </FormControl>
 
-            {error && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                {error}
-              </p>
-            )}
+                {error && (
+                  <Alert status="error" borderRadius="lg" fontSize="sm">
+                    <AlertIcon />
+                    {error}
+                  </Alert>
+                )}
 
-            <button type="submit" disabled={loading} className="btn-primary w-full justify-center">
-              {loading ? 'Signing in…' : 'Sign in'}
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
+                <Button type="submit" colorScheme="cyan" size="lg" isLoading={loading} w="full">
+                  Sign in
+                </Button>
+              </Stack>
+            </form>
+          </Box>
+        </Box>
+      </GridItem>
+    </Grid>
   )
 }

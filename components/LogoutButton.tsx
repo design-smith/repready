@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { Button } from '@chakra-ui/react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function LogoutButton() {
@@ -14,8 +15,8 @@ export default function LogoutButton() {
   }
 
   return (
-    <button onClick={handleLogout} className="btn-secondary text-xs py-1.5 px-3">
+    <Button size="sm" variant="ghost" onClick={handleLogout}>
       Sign out
-    </button>
+    </Button>
   )
 }

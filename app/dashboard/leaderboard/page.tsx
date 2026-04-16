@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import DashboardPageHero from '@/components/DashboardPageHero'
 import type { Profile, Difficulty } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -119,7 +120,11 @@ export default async function LeaderboardPage({
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-xl font-bold text-slate-900 mb-6">Leaderboard</h1>
+      <DashboardPageHero
+        kicker="Friendly competition"
+        title="Leaderboard"
+        description="Ranked by average score on evaluated sessions. Filter by time range or simulation to see who is consistently crushing it."
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
